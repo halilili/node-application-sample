@@ -1,0 +1,19 @@
+trigger:
+- none #master
+
+pool:
+  name: docker-build-agent-pool
+
+steps:
+- task: NodeTool@0
+  #inputs:
+    #versionSpec: :'v12.22.9'
+  displayName: 'Install Node.js'
+
+#- script: |
+    #apt update && apt upgrade
+    #apt install sudo
+    #sudo npm cache clean -f
+    #sudo npm install -g n
+    #sudo n stable
+  #displayName: 'install sudo  And npm'
