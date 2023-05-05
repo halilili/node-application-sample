@@ -1,0 +1,108 @@
+# Azure DevOps pipeline YAML file for building and deploying a Docker image to a Kubernetes cluster on-premises
+
+# Define the pipeline
+trigger:
+- none
+  #branches:
+    #nclude:
+      #- main
+  #paths:
+    #include:
+      #- Dockerfile
+      #- app/**/*
+
+pool:
+  vmImage: 'ubuntu-20.04'
+
+# Below are the variables needed in this pipeline
+variables:
+  - name: imageName
+    value: 'node-app'
+  - name: imageTag
+    value: '$(Build.BuildId)'
+  - name: imageFullName
+    value: '$(imageName):$(imageTag)'
+  - name: dockerfile
+    value : '**/Dockerfile'
+  - name: k8sClusterName
+    value : 'minikube'
+  - name: k8sNameSpace
+    value: 'dev-deployments'
+  - name: dockerhubNS
+    value: 'hassanali70826'
+  - name: deploymentFile
+    value: '**/k8s/deployment.yaml'
+  - name: deploymentFile-1
+    value: '/k8s/deployment.yaml'
+  - name: docker-hub-conn
+    value: 'docker-hub-connection'
+  - name: k8s-on-prime-conn
+    value: 'my-minikube-connection'
+
+
+
+
+stages:
+  - stage: Build
+    displayName: Build and Push Docker Image
+    jobs:
+      - job: Build
+        pool:
+          vmImage: 'ubuntu-20.04'
+        displayName: Build and Push
+        steps:
+        
+          - task: Docker@2
+            name: 'DockerLogIn'
+            displayName: 'Logging In to Docker'
+            inputs:
+              containerRegistry: $(docker-hub-conn)
+              command: 'login'
+
+          - task: Docker@2
+            displayName: Build and Push Image
+            inputs:
+              command: buildAndPush
+              containerRegistry: $(docker-hub-conn)
+              repository: $(dockerhubNS)/$(imageName)
+              dockerfile: $(dockerfile) #$(Build.SourcesDirectory)/
+              tags: |
+                $(imageTag)
+              #buildContext: '$(Build.SourcesDirectory)'
+          
+      - job: Dispaly
+        pool:
+          vmImage: 'ubuntu-20.04'
+        displayName: 'Command Line Script to write out some vars' 
+        steps:
+        - script: |
+            echo build.artifactstagingdirectory and build.BuildId are as follows.
+            echo build.artifactstagingdirectory is $(build.artifactstagingdirectory) $(build.BuildId)
+            echo Pipeline.Workspace is $(Pipeline.Workspace)
+            echo The current branch is - $(Build.SourceBranchName)!!.
+            echo $(finalBuildArtifactName)
+ 
+
+  - stage: Deploy
+    displayName: Deploy to Kubernetes
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - job: Deploy
+        displayName: Deploy to Kubernetes
+        pool:
+          name: docker-build-agent-pool
+        steps:
+          - task: KubernetesManifest@0
+            displayName: 'Deploy to a Dev environment onprime minikube'
+            inputs:
+              kubernetesServiceConnection: $(k8s-on-prime-conn)
+              action: 'deploy'
+              namespace: $(k8sNameSpace)
+              manifests: $(deploymentFile)
+              containers: |
+                $(dockerhubNS)/$(imageName):$(imageTag)
+              arguments: '--skip-cert-validation=true'
+               
+  
+  
